@@ -4,7 +4,18 @@ const app = express();
 const redis = require('redis');
 const { ClientClosedError } = require('redis');
 const assert = require('assert');
-const { resolve } = require('path');
+
+
+//--------------
+
+const client_proto = require("./grpc_client");
+const cli = require('nodemon/lib/cli');
+
+//--------------
+
+
+
+
 const asserteq= assert.equal;
 app.use(cors());
 //
@@ -14,43 +25,115 @@ const getDato = async (client, llave) =>{
     dato = await client.get(llave);
     return dato;
 }
-const Buscar = (key) =>{
+const Buscar = (key, res) =>{
 (async () =>{
-    // const client = redis.createClient({});
+    const client = redis.createClient({
+        url:process.env.REDIS_URL
+    });
     
     
     client.on('error', (err)=>{console.log('Error de Redis', err)})
     await client.connect();
-    // await client.set('nada', 'value');
-    // await client.set('nada12421', 'value');
-    // await client.set('hola', 'value');
-    const value = await client.KEYS(`*${key}*`);
-    if (value.length === 0){
-        await client.set(key, 'dato');
+    
+    const llave = await client.KEYS(`*${key}*`);
+    console.log(llave);
+    
+    if (llave.length>0){
+        (async () =>{
+            console.log("Esta en cache");
+        
+        let respuesta = `[`;
+        let i = 0;
+        while (i<llave.length) {
+            
+            
+            const value = await client.get(llave[i]);
+           
+            if(i+1===llave.length){
+                respuesta+=`${value}`;
+            }else{
+                respuesta+=`${value},`;
+            }
+
+            //respuesta.push(JSON.stringify(value));
+            i++
+        }
+        respuesta+="]";
+        res.send(`<div>
+                <h2>Desde CACHE</h2>
+                ${JSON.parse(JSON.stringify(respuesta)) }
+            </div>`)
+        })();
+        
+        //res.json(JSON.parse(respuesta));
+        //res.json(resp);
     }else{
-        let valores = [];
-        value.map(llave =>{
-            getDato(client, llave).then(valor => console.log(valor));
-        })
+        console.log("No esta")
+        //GRPC
+    
+        client_proto.GetItem({name: key}, (error, items) => {
+          
+          if (error){
+              console.log(error);
+              res.json({"Error":0});
+          } 
+
+          if(items.items.length>0){
+              (async ()=>{
+                console.log(items.items);
+              const datos = items.items;
+              let  i = 0;
+              while (i<datos.length) {
+                  
+                const insert = await client.set(datos[i].name, JSON.stringify(datos[i]));
+                i++
+              }
+              
+              })();
+              res.send(`<div>
+                <h2>Desde RPC</h2>
+                ${JSON.stringify(items.items)}
+            </div>`)
+          }
+          
+      })
+    
         
     }
-//   const resultado = await client.MGET(value.toString());
-    // const usado = await client.MEMORY_STATS();
-    const total = await client.KEYS('*');
-    console.log(total);
+
 })();
 }
-//
 app.get('/',(req, res)=>{
-    res.send(req.query['key']);
-
-    Buscar(req.query['key']);
-    console.log('Okasdjkbsa');
+    res.send(`<h2>holap</h2>`);
 })
+
+
+app.get("/items", async (req, res) => {
+//REDIS
+    
+    Buscar(req.query['name'], res);
+
+    
+  });
+
 app.get('/inventory/search',(req, res)=>{
     console.log(req.query);
     Buscar(req.query['key']);
     res.json(req.query);
+})
+app.get('/push', (req,res)=>{
+    (async () =>{
+        const client = redis.createClient();
+    
+    
+    client.on('error', (err)=>{console.log('Error de Redis', err)})
+    await client.connect();
+    const valores = await client.KEYS('*');
+    const eliminar = await client.flushAll();
+    // const datos = await client.get(valores);
+    res.json(valores.length);
+    
+    })();
 })
 app.listen(3000, ()=>{
     console.log('Escuchando en el puerto 3000');
