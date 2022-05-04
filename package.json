@@ -16,6 +16,8 @@
     "lru_map": "^0.4.1",
     "node-redis": "^0.1.7",
     "nodemon": "^2.0.15",
-    "redis": "^4.0.6"
+    "redis": "^4.0.6",
+    "@grpc/grpc-js": "^1.6.7",
+    "@grpc/proto-loader": "^0.6.9"
   }
 }

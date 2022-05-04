@@ -20,16 +20,10 @@ const asserteq= assert.equal;
 app.use(cors());
 //
 //REDIS CONFIG
-const getDato = async (client, llave) =>{
-    
-    dato = await client.get(llave);
-    return dato;
-}
+
 const Buscar = (key, res) =>{
 (async () =>{
-    const client = redis.createClient({
-        url:process.env.REDIS_URL
-    });
+    const client = redis.createClient();
     
     
     client.on('error', (err)=>{console.log('Error de Redis', err)})
@@ -72,7 +66,6 @@ const Buscar = (key, res) =>{
         //GRPC
     
         client_proto.GetItem({name: key}, (error, items) => {
-          
           if (error){
               console.log(error);
               res.json({"Error":0});
